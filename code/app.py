@@ -101,7 +101,7 @@ def predict():
             return jsonify({"error": "Failed to decode image"}), 400
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_detector.detectMultiScale(gray, 1.3, 5)
+        faces = face_detector.detectMultiScale(gray, 1.1, 5)
 
         results = []
         for (x, y, w, h) in faces:
