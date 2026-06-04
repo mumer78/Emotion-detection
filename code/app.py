@@ -21,9 +21,12 @@ emotion_map = {0: "Angry", 1: "Happy", 2: "Neutral", 3: "Sad", 4: "Surprise"}
 # ------------------------------
 # Load face detector
 # ------------------------------
-face_detector = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
+CASCADE_PATH = os.path.join(BASE_DIR, "haarcascade_frontalface_default.xml")
+face_detector = cv2.CascadeClassifier(CASCADE_PATH)
+if face_detector.empty():
+    print(f"ERROR: Failed to load cascade classifier from {CASCADE_PATH}")
+else:
+    print(f"SUCCESS: Loaded cascade classifier from {CASCADE_PATH}")
 
 # ------------------------------
 # Initialize webcam
