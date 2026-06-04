@@ -106,7 +106,11 @@ function App() {
       const base64Image = captureCanvas.toDataURL('image/jpeg', 0.6);
 
       try {
-        const response = await fetch('/api/predict', {
+        const apiUrl = import.meta.env.VITE_API_URL 
+          ? `${import.meta.env.VITE_API_URL}/api/predict` 
+          : '/api/predict';
+
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ image: base64Image }),
