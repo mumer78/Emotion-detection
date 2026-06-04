@@ -110,7 +110,7 @@ def predict():
             face = face / 255.0
             face = face.reshape(1, 48, 48, 1)
 
-            pred = model.predict(face, verbose=0)[0]
+            pred = model(face, training=False).numpy()[0]
             max_idx = np.argmax(pred)
             emotion = emotion_map[max_idx]
 
