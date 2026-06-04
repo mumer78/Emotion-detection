@@ -1,6 +1,6 @@
 flask
 opencv-python-headless
-tensorflow
+tensorflow-cpu
 numpy
 gunicorn
 pyngrok
