@@ -93,10 +93,10 @@ function App() {
   const startDetectionLoop = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
 
-    // Create a hidden canvas for capturing frames
+    // Create a hidden canvas for capturing frames at 320x240 (4x fewer pixels, much faster detection & upload)
     const captureCanvas = document.createElement('canvas');
-    captureCanvas.width = 640;
-    captureCanvas.height = 480;
+    captureCanvas.width = 320;
+    captureCanvas.height = 240;
     const captureContext = captureCanvas.getContext('2d');
 
     intervalRef.current = setInterval(async () => {
@@ -105,9 +105,9 @@ function App() {
 
       isProcessingRef.current = true;
 
-      // Draw current video frame to hidden canvas
-      captureContext.drawImage(videoRef.current, 0, 0, 640, 480);
-      const base64Image = captureCanvas.toDataURL('image/jpeg', 0.6);
+      // Draw current video frame to hidden canvas at 320x240
+      captureContext.drawImage(videoRef.current, 0, 0, 320, 240);
+      const base64Image = captureCanvas.toDataURL('image/jpeg', 0.5);
 
       try {
         const apiUrl = import.meta.env.VITE_API_URL 
@@ -158,7 +158,7 @@ function App() {
       } finally {
         isProcessingRef.current = false;
       }
-    }, 250); // Detect 4 times per second (low network load, very responsive)
+    }, 200); // 5 times per second (fast, smooth, and lightweight)
   };
 
   // Draw bounding boxes on the overlay canvas
@@ -172,8 +172,17 @@ function App() {
     faces.forEach((face) => {
       const [x, y, w, h] = face.box;
       
+      // Scale bounding box coordinates from 320x240 to canvas dimensions (usually 640x480)
+      const scaleX = canvas.width / 320;
+      const scaleY = canvas.height / 240;
+      
+      const xScaled = x * scaleX;
+      const yScaled = y * scaleY;
+      const wScaled = w * scaleX;
+      const hScaled = h * scaleY;
+
       // Calculate mirrored x coordinate because video is scaleX(-1) but canvas is not
-      const xMirrored = canvas.width - x - w;
+      const xMirrored = canvas.width - xScaled - wScaled;
       
       const emotion = face.emotion;
       const config = emotionConfig[emotion] || emotionConfig.Neutral;
@@ -182,17 +191,17 @@ function App() {
       ctx.strokeStyle = config.color;
       ctx.lineWidth = 4;
       ctx.lineJoin = 'round';
-      ctx.strokeRect(xMirrored, y, w, h);
+      ctx.strokeRect(xMirrored, yScaled, wScaled, hScaled);
 
       // Draw shadow background for label
       ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
-      ctx.fillRect(xMirrored, y - 35, w, 35);
+      ctx.fillRect(xMirrored, yScaled - 35, wScaled, 35);
 
       // Draw text label
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 16px Poppins, sans-serif';
       const labelText = `${config.emoji} ${emotion}`;
-      ctx.fillText(labelText, xMirrored + 10, y - 11);
+      ctx.fillText(labelText, xMirrored + 10, yScaled - 11);
     });
   }, [faces, isActive]);
 

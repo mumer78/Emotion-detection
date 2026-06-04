@@ -18,7 +18,7 @@ tf.config.threading.set_inter_op_parallelism_threads(1)
 from tensorflow.keras.models import load_model
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, max_age=86400)
 
 # ------------------------------
 # Load emotion detection model
