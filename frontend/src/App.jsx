@@ -18,6 +18,7 @@ function App() {
   const streamRef = useRef(null);
   const intervalRef = useRef(null);
   const lastFrameTimeRef = useRef(Date.now());
+  const isProcessingRef = useRef(false);
 
   // Map emotions to colors and emojis
   const emotionConfig = {
@@ -100,6 +101,9 @@ function App() {
 
     intervalRef.current = setInterval(async () => {
       if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
+      if (isProcessingRef.current) return;
+
+      isProcessingRef.current = true;
 
       // Draw current video frame to hidden canvas
       captureContext.drawImage(videoRef.current, 0, 0, 640, 480);
@@ -151,6 +155,8 @@ function App() {
         }
       } catch (err) {
         console.error("Prediction loop error:", err);
+      } finally {
+        isProcessingRef.current = false;
       }
     }, 250); // Detect 4 times per second (low network load, very responsive)
   };
