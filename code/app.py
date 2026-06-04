@@ -1,9 +1,10 @@
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, request, jsonify
 import cv2
 import numpy as np
 from tensorflow.keras.models import load_model
 from pyngrok import ngrok
 import os
+import base64
 
 app = Flask(__name__)
 
@@ -77,6 +78,54 @@ def index():
 def video():
     return Response(gen_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/api/predict', methods=['POST'])
+def predict():
+    try:
+        data = request.json
+        if not data or 'image' not in data:
+            return jsonify({"error": "No image data provided"}), 400
+
+        image_data = data['image']
+        if ',' in image_data:
+            header, image_data = image_data.split(',', 1)
+
+        # Decode base64 image
+        image_bytes = base64.b64decode(image_data)
+        np_array = np.frombuffer(image_bytes, np.uint8)
+        frame = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
+
+        if frame is None:
+            return jsonify({"error": "Failed to decode image"}), 400
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_detector.detectMultiScale(gray, 1.3, 5)
+
+        results = []
+        for (x, y, w, h) in faces:
+            face = gray[y:y+h, x:x+w]
+            face = cv2.resize(face, (48, 48))
+            face = face / 255.0
+            face = face.reshape(1, 48, 48, 1)
+
+            pred = model.predict(face, verbose=0)[0]
+            max_idx = np.argmax(pred)
+            emotion = emotion_map[max_idx]
+
+            # Build probability map
+            probabilities = {}
+            for i, emo in emotion_map.items():
+                probabilities[emo] = float(pred[i])
+
+            results.append({
+                "box": [int(x), int(y), int(w), int(h)],
+                "emotion": emotion,
+                "probabilities": probabilities
+            })
+
+        return jsonify({"faces": results})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ------------------------------
 # Main
