@@ -2,10 +2,20 @@ from flask import Flask, render_template, Response, request, jsonify
 from flask_cors import CORS
 import cv2
 import numpy as np
-from tensorflow.keras.models import load_model
-from pyngrok import ngrok
 import os
 import base64
+import gc
+
+# Limit TensorFlow memory before importing keras
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+
+import tensorflow as tf
+# Limit TensorFlow to use minimal memory
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
+
+from tensorflow.keras.models import load_model
 
 app = Flask(__name__)
 CORS(app)
@@ -29,37 +39,40 @@ else:
     print(f"SUCCESS: Loaded cascade classifier from {CASCADE_PATH}")
 
 # ------------------------------
-# Initialize webcam
+# Warm up the model with a dummy prediction
 # ------------------------------
-camera = cv2.VideoCapture(0)
+dummy = np.zeros((1, 48, 48, 1), dtype=np.float32)
+_ = model(dummy, training=False)
+del dummy
+gc.collect()
+print("SUCCESS: Model warmed up")
 
 # ------------------------------
-# Generate video frames
+# Generate video frames (local webcam - only used when running locally)
 # ------------------------------
 def gen_frames():
+    camera = cv2.VideoCapture(0)
     while True:
         success, frame = camera.read()
         if not success:
-            continue  # retry if camera fails
+            continue
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_detector.detectMultiScale(gray, 1.3, 5)
+        faces = face_detector.detectMultiScale(gray, 1.1, 5)
 
         for (x, y, w, h) in faces:
             face = gray[y:y+h, x:x+w]
             face = cv2.resize(face, (48, 48))
             face = face / 255.0
-            face = face.reshape(1, 48, 48, 1)
+            face = face.reshape(1, 48, 48, 1).astype(np.float32)
 
-            pred = model.predict(face, verbose=0)[0]
+            pred = model(face, training=False).numpy()[0]
             emotion = emotion_map[np.argmax(pred)]
 
-            # Draw rectangle and label
             cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
             cv2.putText(frame, emotion, (x, y-10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
-            # Show probabilities
             for i, (emo, prob) in enumerate(zip(emotion_map.values(), pred)):
                 cv2.putText(frame, f"{emo}: {prob*100:.2f}%",
                             (10, 30 + i*30),
@@ -77,7 +90,7 @@ def gen_frames():
 # ------------------------------
 @app.route('/')
 def index():
-    return render_template("index.html")  # Make sure index.html exists
+    return render_template("index.html")
 
 @app.route('/video')
 def video():
@@ -110,14 +123,13 @@ def predict():
         for (x, y, w, h) in faces:
             face = gray[y:y+h, x:x+w]
             face = cv2.resize(face, (48, 48))
-            face = face / 255.0
+            face = face.astype(np.float32) / 255.0
             face = face.reshape(1, 48, 48, 1)
 
             pred = model(face, training=False).numpy()[0]
             max_idx = np.argmax(pred)
             emotion = emotion_map[max_idx]
 
-            # Build probability map
             probabilities = {}
             for i, emo in emotion_map.items():
                 probabilities[emo] = float(pred[i])
@@ -127,6 +139,10 @@ def predict():
                 "emotion": emotion,
                 "probabilities": probabilities
             })
+
+        # Free memory
+        del frame, gray, np_array, image_bytes
+        gc.collect()
 
         return jsonify({"faces": results})
     except Exception as e:
